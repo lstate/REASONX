@@ -229,15 +229,6 @@ exp_eval(l1norm(I1, I2), Vars, S, Cs) :- !,
 	nth0(N2, Vars, INST2),
 	l1_con(INST1, INST2, Cs, S).
 
-% LAURA
-exp_eval(l0norm(I1, I2), Vars, B, Cs) :- !,
-	data_instance(N1, I1, _, _, _),
-	data_instance(N2, I2, _, _, _),
-	nth0(N1, Vars, INST1),
-	nth0(N2, Vars, INST2),
-	% B has to be binary by construction
-	l0_con(INST1, INST2, Cs, B).
-
 exp_eval(linfnorm(I1, I2), Vars, S, Cs) :- !,
 	data_instance(N1, I1, _, _, _),
 	data_instance(N2, I2, _, _, _),
@@ -256,37 +247,14 @@ l1_con([], [], [], [], 0).
 l1_con([W|Ws], [X|Xs], [Y|Ys], [S >= X-Y, S >= Y-X|Cs], W*S+Sum) :-
 	l1_con(Ws, Xs, Ys, Cs, Sum).
 
-% LAURA l0 norm
-% diff to l1: introduction of a binary variable B
-l0_con(Inst1, Inst2, Cs, Norm) :-
-	norm_weights(W),
-	l0_con(W, Inst1, Inst2, Cs, Norm).	
-
-% base case: sum=0
-l0_con([], [], [], [], 0).
-l0_con([W|Ws], [X|Xs], [Y|Ys], [(S*B) >= X-Y, (S*B) >= Y-X|Cs], W*B+Sum) :-
-	% introduce an (arbitrary) upper bound
-	S = 100,
-	% B is binary
-	binary_(B),
-	l0_con(Ws, Xs, Ys, Cs, Sum).
-
-binary_(B) :- B = 0.
-binary_(B) :- B = 1.
-
 % LAURA linf norm
+% norm weights: W * S > W per feature
 
-% W are important for the normalization of features > W * S > W per feature
-% However, the inf norm has only one "global" slack variable
-% ADD ANOTHER UPPER BOUND (?)
-% SUP()
-
-% diff to l1: slack variable is the same for all elements
+% this should be the version to work with
 linf_con(Inst1, Inst2, Cs, Norm) :-
 	norm_weights(W),
 	linf_con(W, Inst1, Inst2, Cs, Norm).	
 
-% base case: sum=0
 linf_con([], [], [], [], 0).
 linf_con([W|Ws], [X|Xs], [Y|Ys], [S >= X-Y, S >= Y-X|Cs], W*S) :-
 	linf_con(Ws, Xs, Ys, Cs, _).
