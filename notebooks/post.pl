@@ -250,7 +250,6 @@ l1_con([W|Ws], [X|Xs], [Y|Ys], [S >= X-Y, S >= Y-X|Cs], W*S+Sum) :-
 % LAURA linf norm
 % norm weights: W * S > W per feature
 
-% this should be the version to work with
 linf_con(Inst1, Inst2, Cs, Norm) :-
 	norm_weights(W),
 	linf_con(W, Inst1, Inst2, Cs, Norm).	
