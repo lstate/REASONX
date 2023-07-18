@@ -260,8 +260,9 @@ class ReasonX:
                 return self.toCLP(tree[1]) + op + self.toCLP(tree[2])
             if op=='-' and len(tree)==3:
                 return self.toCLP(tree[1]) + '-' + self.toCLP(tree[2])
+            # add white space before negative number
             if op=='-' and len(tree)==2:
-                return -self.toCLP(tree[1])
+                return ' -' + self.toCLP(tree[1])
             raise ValueError("unknown operator"+op)
 
     def toCLP(self, o=sys.stdout, project=None, norm=None):
@@ -294,7 +295,7 @@ class ReasonX:
                       for f in self.df_code.ordinal if f != self.target]
         o.write("\nord_features_pos({}, {}).".format(pos, bounds))
 
-        # norm weghts
+        # norm weights
         o.write("\n% norm_weights(weights) :- features weights")
         weights = [0.5 if self.feature_iscat[i] # nominal
                    else 
@@ -341,6 +342,7 @@ class ReasonX:
         o.write("\n% user_constraints(+Vars, -Cs)")
         fcon.extend(self.constraints)
         if len(fcon)>0:
+            print(fcon)
             Cs = ", ".join(c for c in fcon)
             o.write("""\nuser_constraints(Vars, Cs) :-
             Constraints_list = [{}], 
@@ -447,7 +449,8 @@ class ReasonX:
         if len(features) != 1:
             raise "only one row in the data frame, please!"
         features = self.df_code.inverse_transform(features).reset_index()
-        con = ",".join([name+"." + f + " = " + str(features.loc[0, f]) for f in self.pred_atts])
+        con = ", ".join([name+"." + f + " = " + str(features.loc[0, f]) for f in self.pred_atts])
+        print(con)
         self.instances[name] = 'dummy' # need to have the instance to call self.constraint()
         self.instances[name] = (n, label, minconf, model, self.constraint(con, only_ret=True))
 
