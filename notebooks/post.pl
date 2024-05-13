@@ -1,34 +1,51 @@
-q0 :- 
-	query0(Vars, ResCs, ResPs, Probs),
+%% no optimization -------------------------------------------------------------------------------------
+q_nominimize :- 
+	query_nominimize(Vars, ResCs, ResPs, Probs),
+	length(ResCs, LResCs),
+	lengthsublist(ResPs, LResPs),
 	print(Vars), nl,
 	print(ResCs), nl,
 	print(ResPs), nl,
 	print(Probs), nl,
+	print(LResPs), nl,
+	print(LResCs), nl,
 	fail.
-	
-q1 :- 
-	query1(Vars, ResCs, ResPs, Probs),
+
+%% optimization ----------------------------------------------------------------------------------------
+q_minimize :- 
+	query_minimize(Vars, ResCs, ResPs, Probs, Min),
+	length(ResCs, LResCs),
+	lengthsublist(ResPs, LResPs),
 	print(Vars), nl,
 	print(ResCs), nl,
 	print(ResPs), nl,
 	print(Probs), nl,
-	fail.
+	print(Min), nl,
+	print(LResPs), nl,
+	print(LResCs), nl,
+	fail.	
 	
 %% meta-reasoning over constraints
 
-query0(Vars, ResCs, ResPs, Probs) :-
+%% no optimization -------------------------------------------------------------------------------------
+query_nominimize(Vars, ResCs, ResPs, Probs) :-
 	instvar(Vars),
 	proj_vars(Vars, LVars),
 	findall(inst(I), data_instance(_, I, _, _, _), Is), !,
-	solve(project(relax(satisfiable(cross([unp(typec), userc | Is]))), LVars), Vars, ResCs, _, Extras),
+	solve(project(satisfiable(cross([unp(typec), userc | Is])), LVars), Vars, ResCs, _, Extras),
 	extract(Extras, LVars, ResPs, Probs).
-	
-query1(Vars, ResCs, ResPs, Probs) :-
+
+%% optimization ----------------------------------------------------------------------------------------
+% added Min (minimization value)
+query_minimize(Vars, ResCs, ResPs, Probs, Min) :-
 	instvar(Vars),
 	proj_vars(Vars, LVars),
 	findall(inst(I), data_instance(_, I, _, _, _), Is), !,
-	solve(project(relax(minimize(cross([unp(typec), userc | Is]))), LVars), Vars, ResCs, _, Extras),
+	solve(project(minimize(relax(cross([unp(typec), userc | Is]))), LVars), Vars, ResCs, _, [Min|Extras]),
 	extract(Extras, LVars, ResPs, Probs).
+
+%% -----------------------------------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------------------------------
 
 solve(empty, _, [], [], []).
 
@@ -60,12 +77,13 @@ solve(satisfiable(T), Vars, Cons, OCons, Extras) :-
 	append(Cons, OCons, ACons),
 	satisfiable(ACons, OrdVars).
 
-solve(minimize(T), Vars, Cons, OCons, Extras) :-
-	solve(T, Vars, Cs, OCons, Extras),
+solve(minimize(T), Vars, Cons, OCons, [Min|Extras0]) :-
+	solve(T, Vars, Cs, OCons, Extras0),
 	int_vars(Vars, OrdVars),
 	min_norm(MN),
 	exp_eval(MN, Vars, Norm, CNorm),
-	append(CNorm, Cs, CMin),
+	append(CNorm, Cs, CTmp),
+	append(CTmp, OCons, CMin),
 	satisfiable(CMin, OrdVars, Norm, Min, Vertex),
 	eq_con(OrdVars, Vertex, CEq),
 	append([Norm=Min|CNorm], Cs, Cs1),
@@ -236,36 +254,65 @@ exp_eval(linfnorm(I1, I2), Vars, S, Cs) :- !,
 	nth0(N2, Vars, INST2),
 	linf_con(INST1, INST2, Cs, S).
 
+exp_eval(l1normd(_, []), _, 0, []).
+exp_eval(l1normd(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
+	data_instance(N1, I1, _, _, _),
+	% head
+	data_instance(N2List, I2Head, _, _, _),
+	nth0(N1, Vars, INST1),
+	nth0(N2List, Vars, INST2),
+	l1_con(INST1, INST2, Cs, S),
+	% tail
+	exp_eval(l1normd(I1, I2Tail), Vars, STail, CsTail),
+	append(Cs, CsTail, NewCs).
+
+exp_eval(l1norml(_, []), _, 0, []).
+exp_eval(l1norml(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
+	data_instance(N1, I1, _, _, _),
+	% head
+	data_instance(N2List, I2Head, _, _, _),
+	nth0(N1, Vars, INST1),
+	nth0(N2List, Vars, INST2),
+	l1_con(INST1, INST2, Cs, S),
+	% tail
+	exp_eval(l1norml(I1, I2Tail), Vars, STail, CsTail),
+	append(Cs, CsTail, NewCs).
+
+exp_eval(l1normll([], _), _, 0, []).
+exp_eval(l1normll([I1Head|I1Tail], [I2Head|I2Tail]), Vars, S + STail, NewCs) :-
+	% head
+	exp_eval(l1norml(I1Head, [I2Head|I2Tail]), Vars, S, Cs),
+	% tail
+	exp_eval(l1normll(I1Tail, [I2Head|I2Tail]), Vars, STail, CsTail),
+	append(Cs, CsTail, NewCs).
+
 exp_eval(X, _, X, []) :-
 	number(X), !.
 
 l1_con(Inst1, Inst2, Cs, Norm) :-
-	norm_weights(W),
+	l1_weights(W),
 	l1_con(W, Inst1, Inst2, Cs, Norm).	
 
 l1_con([], [], [], [], 0).
 l1_con([W|Ws], [X|Xs], [Y|Ys], [S >= X-Y, S >= Y-X|Cs], W*S+Sum) :-
 	l1_con(Ws, Xs, Ys, Cs, Sum).
 
-% LAURA linf norm
-% norm weights: W * S > W per feature
-
 linf_con(Inst1, Inst2, Cs, Norm) :-
-	norm_weights(W),
+	linf_weights(W),
 	linf_con(W, Inst1, Inst2, Cs, Norm).	
 
-linf_con([], [], [], [], 0).
-linf_con([W|Ws], [X|Xs], [Y|Ys], [S >= X-Y, S >= Y-X|Cs], W*S) :-
-	linf_con(Ws, Xs, Ys, Cs, _).
+linf_con([], [], [], [], _).
+linf_con([W|Ws], [X|Xs], [Y|Ys], [S >= W*(X-Y), S >= W*(Y-X)|Cs], S) :-
+		linf_con(Ws, Xs, Ys, Cs, S).
 
 %%%%%%% basic operations on linear constraints
 
-nentails(S1, [], 0).
+nentails(_, [], 0).
 nentails(S1, [C|S2], N) :-
 	nentails(S1, S2, N1),
 	(entails(S1, C) -> N is N1+1; N is N1).
 
-nconsistent(S1, [], 0).
+nconsistent(_, [], 0).
 nconsistent(S1, [C|S2], N) :-
 	nconsistent(S1, S2, N1),
 	(satisfiable([C|S1]) -> N is N1+1; N is N1).
@@ -287,7 +334,8 @@ satisfiable(P, Ints, Norm, Min) :-
 satisfiable(P, Ints, Norm, Min, Vertex) :-
 	copy_term(P-Ints-Norm, CopyP-CopyInts-CopyNorm),
 	tell_cs(CopyP),
-	bb_inf(CopyInts, CopyNorm, Min, Vertex, 0.001).
+	relax_eps(E),
+	bb_inf(CopyInts, CopyNorm, Min, Vertex, E).
 
 projects([], [], []).
 projects([X|Xs], [C|Cxs], [P|Ps]) :-
@@ -326,9 +374,11 @@ relax([X=<Y|Cs], [X=<Y|Rs]) :-
 	relax(Cs, Rs).
 relax([X>=Y|Cs], [X>=Y|Rs]) :-
 	relax(Cs, Rs).
-relax([X<Y|Cs], [X=<Y|Rs]) :-
+relax([X<Y|Cs], [X+E =<Y|Rs]) :-
+	relax_eps(E),
 	relax(Cs, Rs).
-relax([X>Y|Cs], [X>=Y|Rs]) :-
+relax([X>Y|Cs], [X-E >=Y|Rs]) :-
+	relax_eps(E),
 	relax(Cs, Rs).
 
 %%%%%%% project and prepare_dump from 
@@ -366,6 +416,12 @@ lengths([], _).
 lengths([V|Vs], N) :-
 	length(V, N),
 	lengths(Vs, N).
+
+%% length of sublists (list inside of lists)
+lengthsublist([], []).
+lengthsublist([V|Vs], [L|Ls]) :-
+	length(V, L),
+	lengthsublist(Vs, Ls).
 
 cls :- write('\33\[2J').
 
