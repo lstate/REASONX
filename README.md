@@ -24,8 +24,12 @@ More information can be found in our papers:
 
 (jupyter notebook files)
 
--- Reasoning over time
--- Reasoning over models
--- Diversity optimization
--- Detecting Biases
--- Evaluation
+- Reasoning over time
+
+- Reasoning over models
+  
+- Diversity optimization
+
+- Detecting Biases
+
+- Evaluation
