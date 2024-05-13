@@ -10,7 +10,6 @@ from sklearn.tree import DecisionTreeClassifier
 import sys
 import os
 import re
-#import numpy as np
 
 # pip install lark-parser
 import lark
@@ -21,10 +20,11 @@ from lineartree import LinearTreeClassifier
 import dautils
 
 class ReasonX:
-    def __init__(self, pred_atts, target, df_code):
+    def __init__(self, pred_atts, target, df_code, verbose=2):
         self.pred_atts = pred_atts
         self.target = target
         self.df_code = df_code
+        self.verbose = verbose
         # pos -> one-hot feature name
         self.feature_names = df_code.encoded_atts(pred_atts)
         # one-hot feature name -> pos
@@ -51,7 +51,7 @@ class ReasonX:
         self.transform = self.Parse(self)
         self.parse = lark.Lark(self.grammar_exp, parser='lalr', transformer=self.transform).parse
         self.reset()
-
+       
     def reset(self, keep_model=False):
         self.constraints = []
         self.instances = dict()
@@ -61,7 +61,13 @@ class ReasonX:
         if not keep_model:
             self.models = []
 
+    def verbosity(self, verbose):
+        self.verbose = min(2, max(0, int(verbose)))
+
+    # LAURA diversity optimization (l1norml/l1normll re-added)
     grammar_exp = """
+        _separated{x, sep}: x (sep x)*  // Define a sequence of 'x sep x sep x ...'
+        
         ?start: seqc
             | exp
         ?seqc: cons
@@ -83,8 +89,11 @@ class ReasonX:
              | "-" atom         -> neg
              | NAME "." NAME    -> var
              | NAME             -> val
-             | "l1norm" "(" NAME "," NAME ")" -> l1norm
              | "l0norm" "(" NAME "," NAME ")" -> l0norm
+             | "l1norm" "(" NAME "," NAME ")" -> l1norm
+             | "l1norm" "(" NAME "," "[" _separated{NAME, ","} "]" ")" -> l1normd
+             | "l1norml" "(" NAME ", [" NAME "," NAME "])" -> l1norml
+             | "l1normll" "([" NAME "," NAME "], [" NAME "," NAME "])" -> l1normll
              | "linfnorm" "(" NAME "," NAME ")" -> linfnorm
              | "(" exp ")"
         %import common.CNAME    -> NAME
@@ -110,26 +119,7 @@ class ReasonX:
             if var not in self.m2clp.pred_atts:
                 raise ValueError("unknown var "+var)
             return ['var', inst, var]
-
-        def norm(self, *pars):
-            if len(pars) != 3 or pars[0][1] != 'Alpha':
-                raise Exception("one par Alpha expected"+pars)
-            elif pars[1][1] != 'Beta':
-                raise Exception("one par Beta expected"+pars)
-            elif pars[2][1] != 'Gamma':
-                raise Exception("one par Gamma expected"+pars)
-            alpha = str(float(pars[0][2]))
-            beta = str(float(pars[1][2]))
-            gamma = str(float(pars[2][2]))
-            return ['norm', alpha, beta, gamma] 
        
-        def l1norm(self, linst, rinst):
-            if linst not in self.m2clp.instances:
-                raise ValueError("unknown instance "+linst)
-            if rinst not in self.m2clp.instances:
-                raise ValueError("unknown instance "+rinst)
-            return ['l1norm', ['inst', linst], ['inst', rinst]]
-        
         def l0norm(self, linst, rinst):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -137,6 +127,49 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst)
             return ['l0norm', ['inst', linst], ['inst', rinst]]
         
+        # l1 norm between two instances
+        def l1norm(self, linst, rinst):
+            if linst not in self.m2clp.instances:
+                raise ValueError("unknown instance "+linst)
+            if rinst not in self.m2clp.instances:
+                raise ValueError("unknown instance "+rinst)
+            return ['l1norm', ['inst', linst], ['inst', rinst]]
+        
+        # l1 norm between with diversity
+        def l1normd(self, linst, *rinst):
+            if linst not in self.m2clp.instances:
+                raise ValueError("unknown instance "+linst)
+            if len(rinst)==0:
+                    raise ValueError("no instance provided")
+            for inst in rinst:
+                if inst not in self.m2clp.instances:
+                    raise ValueError("unknown instance "+inst)
+            return ['l1normd', ['inst', linst], 
+                    [['inst', inst] for inst in rinst]]
+        
+        # LAURA diversity optimization
+        def l1norml(self, linst, rinst1, rinst2):
+            if linst not in self.m2clp.instances:
+                raise ValueError("unknown instance "+linst)
+            if rinst1 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+rinst1)
+            if rinst2 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+rinst2)
+            return ['l1norml', ['inst', linst], ['inst', rinst1], ['inst', rinst2]]
+        
+        # LAURA diversity optimization
+        def l1normll(self, linst1, linst2, rinst1, rinst2):
+            if linst1 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+linst1)
+            if linst2 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+linst2)
+            if rinst1 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+rinst1)
+            if rinst2 not in self.m2clp.instances:
+                raise ValueError("unknown instance "+rinst2)
+            return ['l1normll', ['inst', linst1], ['inst', linst2], ['inst', rinst1], ['inst', rinst2]]
+      
+                        
         def linfnorm(self, linst, rinst):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -244,14 +277,22 @@ class ReasonX:
                 return tree[1]
             if op=='val':
                 return tree[1]
-            if op=='norm':
-                return tree[1]
             if op=='var':
                 return 'var(i'+tree[1]+', v'+tree[2]+')'
             if op=='inst':
                 return 'i'+tree[1]
             if op=='l1norm':
                 return 'l1norm(' + self.toCLP(tree[1]) + ',' + self.toCLP(tree[2]) + ')'
+            # diversity optimization
+            if op=='l1normd':
+                return 'l1normd(' + self.toCLP(tree[1]) + ', [' +\
+                            ','.join([self.toCLP(el) for el in tree[2]]) + '])'
+            # LAURA diversity optimization
+            if op=='l1norml':
+                return 'l1norml(' + self.toCLP(tree[1]) + ', [' + self.toCLP(tree[2]) + "," + self.toCLP(tree[3]) + '])'
+            # LAURA diversity optimization
+            if op=='l1normll':
+                return 'l1normll([' + self.toCLP(tree[1]) + ',' + self.toCLP(tree[2]) + '], [' + self.toCLP(tree[3]) + "," + self.toCLP(tree[4]) + '])'
             if op=='l0norm':
                 return 'l0norm(' + self.toCLP(tree[1]) + ',' + self.toCLP(tree[2]) + ')'
             if op=='linfnorm':
@@ -265,7 +306,7 @@ class ReasonX:
                 return ' -' + self.toCLP(tree[1])
             raise ValueError("unknown operator"+op)
 
-    def toCLP(self, o=sys.stdout, project=None, norm=None):
+    def toCLP(self, o=sys.stdout, project=None, norm=None, eps=0):
 
         o = open("newfile.pl", "w")
 
@@ -295,7 +336,7 @@ class ReasonX:
                       for f in self.df_code.ordinal if f != self.target]
         o.write("\nord_features_pos({}, {}).".format(pos, bounds))
 
-        # norm weights
+        # l1 norm weights
         o.write("\n% norm_weights(weights) :- features weights")
         weights = [0.5 if self.feature_iscat[i] # nominal
                    else 
@@ -303,7 +344,12 @@ class ReasonX:
                    else 
                    1/(self.df_code.encode[f][1] - self.df_code.encode[f][0]) ) # continuous
                        for i, f in enumerate(self.feature_names)]
-        o.write("\nnorm_weights({}).".format(weights))
+        o.write("\nl1_weights({}).".format(weights))
+        # linf norm weights
+        for i, f in enumerate(self.feature_names):
+            if self.feature_iscat[i]:
+                weights[i] = 1
+        o.write("\nlinf_weights({}).".format(weights))
 
         # instances
         fcon = []
@@ -342,7 +388,6 @@ class ReasonX:
         o.write("\n% user_constraints(+Vars, -Cs)")
         fcon.extend(self.constraints)
         if len(fcon)>0:
-            print(fcon)
             Cs = ", ".join(c for c in fcon)
             o.write("""\nuser_constraints(Vars, Cs) :-
             Constraints_list = [{}], 
@@ -354,6 +399,9 @@ class ReasonX:
         # norm
         o.write("\nmin_norm({}).".format(0 if norm is None else self.transform.toCLP(self.parse(norm))))
         
+        # eps
+        o.write("\nrelax_eps({}).".format(eps))
+
         o.write("\n:- ['post.pl'].")
         o.close()
 
@@ -364,13 +412,14 @@ class ReasonX:
         return list(set(self.irules[inst])) if distinct else self.irules[inst]
     
     # new function that encapsulates the optimization
-    # uses specific predicates from the pl script
-    def solveopt(self, minimize=None, project=None, verbose=1):
+    # updates in the parameters: 1) evaluation parameter, 2) return results (answer constraints), 3) diversity (diversity optimization)
+    def solveopt(self, minimize=None, project=None, evaluation=False, return_results=False, diversity=False, eps=0):
         if self.recompile or project is not None or minimize is not None:
-            self.toCLP(project=project, norm=minimize)
+            self.toCLP(project=project, norm=minimize, eps=eps)
             self.recompile = project is not None
         # run Prolog from cmdline
-        goal = 'q0' if minimize is None else 'q1'
+        # update the queries that are used
+        goal = 'q_nominimize' if minimize is None else 'q_minimize'
         cmd = "swipl -q -t halt -g " + goal + " -l newfile.pl"
         res = os.popen(cmd).read()
         res = res.replace('=<', '<=', )
@@ -381,34 +430,87 @@ class ReasonX:
         pos2inst = {val[0]:name for name, val in self.instances.items()}
         self.ans = []
         self.irules = {name:[] for name in self.instances.keys()}
-        for i in range(0, len(res)-1, 4):
+        # variables to store evaluation values
+        # number of results
+        number_of_results = 0
+        # computed distances
+        distance =[]
+        # number of premises
+        number_of_premises = []
+        # number of answer constraints
+        number_of_answer_constraints = []
+        # dimension of CE
+        collect_sub_len_list = []
+        # results (answer constraints)
+        return_results_list = []
+        # value of function diversity optimization
+        diversity_function = []
+        # number of admissible path (old)
+        #number_of_path = []
+        if minimize is None:
+            # q_minimize
+            step = 6
+        else:
+            # q1_3
+            step = 7
+        # compute number of results
+        number_of_results = (len(res) - 1) / step
+        for i in range(0, len(res)-1, step):
+            # diversity optimization: only collect function value
+            if diversity == 1:
+                diversity_function.append(float(res[i + 4]))
+            # evaluation
+            if evaluation:
+                # no optimization
+                if minimize is None:
+                    # number of answer constraints
+                    number_of_answer_constraints.append(int(res[i + 5]))
+                    # number of premises
+                    number_of_premises_string = (res[i + 4]).strip("[]")
+                    number_of_premises_list = [int(s) for s in number_of_premises_string.split(',')]
+                    number_of_premises.append(number_of_premises_list)
+                    #number_of_path.append(int(res[i+6]))
+                # optimization
+                else:
+                    # distance F-CE
+                    distance.append(float(res[i + 4]))
+                    number_of_answer_constraints.append(int(res[i + 6]))
+                    number_of_premises_string = (res[i + 5]).strip("[]")
+                    number_of_premises_list = [int(s) for s in number_of_premises_string.split(',')]
+                    number_of_premises.append(number_of_premises_list)
+                    #number_of_path.append(int(res[i+7]))
             inst = res[i]
             inst = eval(re.sub("(\_\d+)", "'\g<0>'", inst))
-            #print(dec_var)
-            con = res[i+1]               
+            con = r","+res[i+1][1:-1]+r","
             paths = res[i+2]      
             confs = eval(res[i+3])
             used = [ [] for i in range(ninstances)]
-            for ipos, ilist in enumerate(inst):
-                for fpos, f in enumerate(ilist):
-                    r = pos2inst[ipos]+'.'+self.feature_names[fpos]
-                    con2 = con.replace(f, r)
-                    if con2 != con:
-                        used[ipos].append(fpos)
+            pvar2ivar = { vnum:(ipos, fpos)\
+                            for ipos, ilist in enumerate(inst)\
+                                for fpos, vnum in enumerate(ilist) }            
+            for k in sorted(pvar2ivar.keys(), key=len, reverse=True):
+                ipos, fpos = pvar2ivar[k]
+                r = pos2inst[ipos]+'.'+self.feature_names[fpos]
+                con2 = con.replace(k, r)
+                if len(con) != len(con2):
                     con = con2
-                    paths = paths.replace(f, r)
+                    used[ipos].append(fpos)
+                    paths = paths.replace(k, r)
+            # first pass
             for ipos, a in enumerate(used):
                 # detect =1.0
                 for fpos in a:
                     if self.feature_iscat[fpos]:
-                        r = pos2inst[ipos]+'.'+self.feature_names[fpos]
-                        if con.find(r+"=1.0")>=0:
-                            # remove all other "=0.0
+                        r = r","+pos2inst[ipos]+'.'+self.feature_names[fpos]
+                        if con.find(r+"=1.0,")>=0:
+                            # remove all other "=0.0"
                             f = self.feature_original[fpos]
                             for v in self.df_code.encoded_atts([f]):
-                                r = pos2inst[ipos]+'.'+v
-                                con = re.sub(r+r"=0.0(\,)", "", con) 
-                # second pass
+                                if v != self.feature_names[fpos]:
+                                    r = r","+pos2inst[ipos]+'.'+v
+                                    con = re.sub(r+r"=0.0,", ",", con)
+            # second pass
+            for ipos, a in enumerate(used):
                 for fpos in a:
                     if self.feature_iscat[fpos]:
                         r = pos2inst[ipos]+'.'+self.feature_names[fpos]
@@ -419,7 +521,34 @@ class ReasonX:
             # output constraints
             con = con[1:-1]
             self.ans.append(con)
-            if verbose >= 1:
+            # format the output of constraints by instance ("F.", "CE.", etc.)
+            keys_ = list(self.instances.keys())
+            con_ = con.replace(",", ", ")
+            return_results_list_ = []
+            for m, n in enumerate(keys_):
+                con_sub = ""
+                n = n + "."
+                for constraint in con_.split():
+                    if n in constraint:
+                        con_sub = con_sub + constraint
+                return_results_list_.append(con_sub) 
+            # return constraints also as list
+            return_results_list.append(return_results_list_)
+            if self.verbose >= 1:
+                #print("--\nAnswer constraint for %s: %s" % (n, con_sub) )
+                # dimentionality (new), for the CE
+                if evaluation == 1 and minimize is not None:
+                    collect_dim = []
+                    for p in range(len(keys_) - 1):
+                        operator = ["=<", "<", ">=", ">"]
+                        dim = 0
+                        # check if operators are contained in the output string (not counting of how many times they appear)
+                        for o, inequ in enumerate(operator):
+                            if inequ in return_results_list[0][p]:
+                                # if any of the operators appear in the output string, the output is higher dimensional than a point
+                                dim = 1
+                        collect_dim.append(dim)
+                    collect_sub_len_list.append(collect_dim)
                 print('---\nAnswer constraint:', con)
             paths = paths.split("],[")
             paths[0] = paths[0][2:] # remove trailing []
@@ -428,11 +557,22 @@ class ReasonX:
                 name = pos2inst[i]
                 label = self.instances[name][1]
                 l = self.df_code.decode[self.target][label]
-                if verbose >= 2:
+                if self.verbose >= 2:
                     print('Rule satisfied by {}: IF {} THEN {} [{:.4f}]'.format(name, p, l, c))
                 self.irules[name].append((p, c))
-        if verbose>= 1 and len(res)<2:
+        if self.verbose>= 1 and len(res)<2:
             print('No answer')
+        # return evaluation measures only
+        if evaluation:
+            if return_results:
+                return return_results_list, number_of_results, distance, number_of_premises, number_of_answer_constraints, collect_sub_len_list
+            return number_of_results, distance, number_of_premises, number_of_answer_constraints, collect_sub_len_list
+        # return results (answer constraints) only
+        if return_results:
+            return return_results_list
+        # to run the diversity optimization
+        if diversity:
+            return diversity_function
       
     def instance(self, name, label, features=None, minconf=0, overwrite=True, model=None):
         self.recompile = True
@@ -519,6 +659,8 @@ class ReasonX:
                         body = body + ','
                     body_left = body + "{} =< {}".format(name, threshold)
                     body_right = body + "{} > {}".format(name, threshold)
+                    body_left = body_left.replace("+-", "+ -")
+                    body_right = body_right.replace("+-", "+ -")
                     left = "path({},[{}],[{}],{},{}).".format(nm, allf, body_left, node['classes'][0], maxfreq)
                     right = "path({},[{}],[{}],{},{}).".format(nm, allf, body_right, node['classes'][1], maxfreq)
                     return left + "\n" + right
@@ -538,16 +680,24 @@ class ReasonX:
         if self.feature_iscat[pos] or self.feature_isord[pos]:
             raise Exception('bounds for continuous attributes only')
         self.feature_bounds[att] = (minv, maxv)
-
+                    
     def retract(self, con):
-        self.recompile = True
+        nr = 0
         for c in re.split(r',\s*(?![^()]*\))', con):
             ret = self.transform.toCLP(self.parse(c))
             # retract from self.constraints
+            nc = len(self.constraints)
             self.constraints = [cs for cs in self.constraints if cs != ret]
+            nc -= len(self.constraints)
+            nr += nc  # update number retracted
             for name in self.instances:
                 (n, label, minconf, model, con) = self.instances[name]
-                con2 = [cs for cs in con if cs != ret]
-                if len(con) != len(con2):
-                    # retract from instances
-                    self.instances[name] = (n, label, minconf, model, con2) 
+                nc = len(con)
+                con = [cs for cs in con if cs != ret]
+                nc -= len(con)
+                if nc > 0: # retract from instances                    
+                    self.instances[name] = (n, label, minconf, model, con) 
+                    nr += nc # update number retracted
+        self.recompile = nr > 0
+        if self.verbose >= 1:
+            print(nr, 'constraints retracted')
