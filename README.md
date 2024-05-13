@@ -30,6 +30,6 @@ More information can be found in our papers:
   
 - Diversity optimization
 
-- Detecting Biases
+- Detecting biases
 
 - Evaluation
