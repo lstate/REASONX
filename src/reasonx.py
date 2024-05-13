@@ -64,7 +64,7 @@ class ReasonX:
     def verbosity(self, verbose):
         self.verbose = min(2, max(0, int(verbose)))
 
-    # LAURA diversity optimization (l1norml/l1normll re-added)
+    
     grammar_exp = """
         _separated{x, sep}: x (sep x)*  // Define a sequence of 'x sep x sep x ...'
         
@@ -135,7 +135,6 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst)
             return ['l1norm', ['inst', linst], ['inst', rinst]]
         
-        # l1 norm between with diversity
         def l1normd(self, linst, *rinst):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -147,7 +146,6 @@ class ReasonX:
             return ['l1normd', ['inst', linst], 
                     [['inst', inst] for inst in rinst]]
         
-        # LAURA diversity optimization
         def l1norml(self, linst, rinst1, rinst2):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -157,7 +155,6 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst2)
             return ['l1norml', ['inst', linst], ['inst', rinst1], ['inst', rinst2]]
         
-        # LAURA diversity optimization
         def l1normll(self, linst1, linst2, rinst1, rinst2):
             if linst1 not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst1)
@@ -287,10 +284,8 @@ class ReasonX:
             if op=='l1normd':
                 return 'l1normd(' + self.toCLP(tree[1]) + ', [' +\
                             ','.join([self.toCLP(el) for el in tree[2]]) + '])'
-            # LAURA diversity optimization
             if op=='l1norml':
                 return 'l1norml(' + self.toCLP(tree[1]) + ', [' + self.toCLP(tree[2]) + "," + self.toCLP(tree[3]) + '])'
-            # LAURA diversity optimization
             if op=='l1normll':
                 return 'l1normll([' + self.toCLP(tree[1]) + ',' + self.toCLP(tree[2]) + '], [' + self.toCLP(tree[3]) + "," + self.toCLP(tree[4]) + '])'
             if op=='l0norm':
@@ -412,7 +407,6 @@ class ReasonX:
         return list(set(self.irules[inst])) if distinct else self.irules[inst]
     
     # new function that encapsulates the optimization
-    # updates in the parameters: 1) evaluation parameter, 2) return results (answer constraints), 3) diversity (diversity optimization)
     def solveopt(self, minimize=None, project=None, evaluation=False, return_results=False, diversity=False, eps=0):
         if self.recompile or project is not None or minimize is not None:
             self.toCLP(project=project, norm=minimize, eps=eps)
@@ -448,15 +442,13 @@ class ReasonX:
         # number of admissible path (old)
         #number_of_path = []
         if minimize is None:
-            # q_minimize
             step = 6
         else:
-            # q1_3
             step = 7
         # compute number of results
         number_of_results = (len(res) - 1) / step
         for i in range(0, len(res)-1, step):
-            # diversity optimization: only collect function value
+            # diversity optimization
             if diversity == 1:
                 diversity_function.append(float(res[i + 4]))
             # evaluation
@@ -536,13 +528,13 @@ class ReasonX:
             return_results_list.append(return_results_list_)
             if self.verbose >= 1:
                 #print("--\nAnswer constraint for %s: %s" % (n, con_sub) )
-                # dimentionality (new), for the CE
+                # dimentionality
                 if evaluation == 1 and minimize is not None:
                     collect_dim = []
                     for p in range(len(keys_) - 1):
                         operator = ["=<", "<", ">=", ">"]
                         dim = 0
-                        # check if operators are contained in the output string (not counting of how many times they appear)
+                        # check if operators are contained in the output string
                         for o, inequ in enumerate(operator):
                             if inequ in return_results_list[0][p]:
                                 # if any of the operators appear in the output string, the output is higher dimensional than a point
