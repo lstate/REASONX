@@ -12,10 +12,20 @@ More information can be found in our papers:
 
     Accepted at [JELIA 2023](https://jelia2023.inf.tu-dresden.de/)
 
-    A paper on the theoretical background of REASONX (Constraint Logic Programming, Prolog, Meta-Interpreter).
+    A [paper](http://export.arxiv.org/abs/2309.00422) on the theoretical background of REASONX (Constraint Logic Programming, Prolog, Meta-Interpreter).
 
 2) "Reason to explain: Interactive contrastive explanations (REASONX)" by Laura State, Salvatore Ruggieri and Franco Turini
 
     Accepted at [xAI 2023](https://xaiworldconference.com/)
 
-    An interdisciplinary paper, demonstrating main capabilites of REASONX via a synthetic example, and based on the Adult Income Dataset.
+    An interdisciplinary [paper](https://arxiv.org/abs/2305.18143), demonstrating main capabilites of REASONX via a synthetic example, and based on the Adult Income Dataset.
+
+## Extension
+
+(jupyter notebook files)
+
+-- Reasoning over time
+-- Reasoning over models
+-- Diversity optimization
+-- Detecting Biases
+-- Evaluation
