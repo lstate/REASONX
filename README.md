@@ -20,9 +20,7 @@ More information can be found in our papers:
 
     An interdisciplinary [paper](https://arxiv.org/abs/2305.18143), demonstrating main capabilites of REASONX via a synthetic example, and based on the Adult Income Dataset.
 
-## Extension
-
-(jupyter notebook files)
+## Extension of the code base for thesis (notebooks/extension_thesis)
 
 - Reasoning over time
 
@@ -32,4 +30,6 @@ More information can be found in our papers:
 
 - Detecting biases
 
-- Evaluation
+- Evaluation: folder containing a couple of files, updated on 2024-10-01
+
+- Runtimes: folder containing a couple of files, updated on 2024-10-01
