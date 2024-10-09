@@ -61,17 +61,6 @@ explainer = anchor_tabular.AnchorTabularExplainer(
     ["0", "1"],
     encoded_pred_atts,
     X1_numpy)
-    
-#dataset.class_names
-#dataset.feature_names
-#dataset.train
-#dataset.categorical_names
-#encoder_fn=encoder.transform
-# convert dataset to numpy, define lambda function, predict and initialize single explanation
-
-# THRESHOLD PARAMETER
-# "Note that we set threshold to 0.95, so we guarantee (with high probability) that precision will be above 0.95 - that is, that predictions on 
-# instances where the anchor holds will be the same as the original prediction at least 95% of the time." (github)
 
 instances = 1
 threshold = [0.99]
