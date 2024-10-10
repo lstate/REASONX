@@ -36,7 +36,6 @@ query_nominimize(Vars, ResCs, ResPs, Probs) :-
 	extract(Extras, LVars, ResPs, Probs).
 
 %% optimization ----------------------------------------------------------------------------------------
-% added Min (minimization value)
 query_minimize(Vars, ResCs, ResPs, Probs, Min) :-
 	instvar(Vars),
 	proj_vars(Vars, LVars),
@@ -247,9 +246,6 @@ exp_eval(l1norm(I1, I2), Vars, S, Cs) :- !,
 	nth0(N2, Vars, INST2),
 	l1_con(INST1, INST2, Cs, S).
 
-% - TBD: l1 norm with diversity
-% l1normd(I1, I2s, Vars, S, Cs)
-
 exp_eval(linfnorm(I1, I2), Vars, S, Cs) :- !,
 	data_instance(N1, I1, _, _, _),
 	data_instance(N2, I2, _, _, _),
@@ -257,8 +253,6 @@ exp_eval(linfnorm(I1, I2), Vars, S, Cs) :- !,
 	nth0(N2, Vars, INST2),
 	linf_con(INST1, INST2, Cs, S).
 
-% LAURA diversity optimization
-% distance between F and one/several CE (as list)
 exp_eval(l1normd(_, []), _, 0, []).
 exp_eval(l1normd(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
 	data_instance(N1, I1, _, _, _),
@@ -271,7 +265,6 @@ exp_eval(l1normd(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
 	exp_eval(l1normd(I1, I2Tail), Vars, STail, CsTail),
 	append(Cs, CsTail, NewCs).
 
-% distance between F and one/several CE (as list)
 exp_eval(l1norml(_, []), _, 0, []).
 exp_eval(l1norml(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
 	data_instance(N1, I1, _, _, _),
@@ -283,8 +276,7 @@ exp_eval(l1norml(I1, [I2Head|I2Tail]), Vars, S + STail, NewCs) :- !,
 	% tail
 	exp_eval(l1norml(I1, I2Tail), Vars, STail, CsTail),
 	append(Cs, CsTail, NewCs).
-	
-% distance between one/several CE (as list)
+
 exp_eval(l1normll([], _), _, 0, []).
 exp_eval(l1normll([I1Head|I1Tail], [I2Head|I2Tail]), Vars, S + STail, NewCs) :-
 	% head
