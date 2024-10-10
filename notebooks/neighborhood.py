@@ -1,5 +1,3 @@
-# neighborhood taken from old versions REASONX
-
 import random
 import numpy as np
 
