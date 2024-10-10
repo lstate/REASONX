@@ -64,7 +64,6 @@ class ReasonX:
     def verbosity(self, verbose):
         self.verbose = min(2, max(0, int(verbose)))
 
-    # LAURA diversity optimization (l1norml/l1normll re-added)
     grammar_exp = """
         _separated{x, sep}: x (sep x)*  // Define a sequence of 'x sep x sep x ...'
         
@@ -127,7 +126,6 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst)
             return ['l0norm', ['inst', linst], ['inst', rinst]]
         
-        # l1 norm between two instances
         def l1norm(self, linst, rinst):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -135,7 +133,6 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst)
             return ['l1norm', ['inst', linst], ['inst', rinst]]
         
-        # l1 norm between with diversity
         def l1normd(self, linst, *rinst):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -147,7 +144,6 @@ class ReasonX:
             return ['l1normd', ['inst', linst], 
                     [['inst', inst] for inst in rinst]]
         
-        # LAURA diversity optimization
         def l1norml(self, linst, rinst1, rinst2):
             if linst not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst)
@@ -157,7 +153,6 @@ class ReasonX:
                 raise ValueError("unknown instance "+rinst2)
             return ['l1norml', ['inst', linst], ['inst', rinst1], ['inst', rinst2]]
         
-        # LAURA diversity optimization
         def l1normll(self, linst1, linst2, rinst1, rinst2):
             if linst1 not in self.m2clp.instances:
                 raise ValueError("unknown instance "+linst1)
@@ -287,10 +282,10 @@ class ReasonX:
             if op=='l1normd':
                 return 'l1normd(' + self.toCLP(tree[1]) + ', [' +\
                             ','.join([self.toCLP(el) for el in tree[2]]) + '])'
-            # LAURA diversity optimization
+            # L. diversity optimization
             if op=='l1norml':
                 return 'l1norml(' + self.toCLP(tree[1]) + ', [' + self.toCLP(tree[2]) + "," + self.toCLP(tree[3]) + '])'
-            # LAURA diversity optimization
+            # L. diversity optimization
             if op=='l1normll':
                 return 'l1normll([' + self.toCLP(tree[1]) + ',' + self.toCLP(tree[2]) + '], [' + self.toCLP(tree[3]) + "," + self.toCLP(tree[4]) + '])'
             if op=='l0norm':
