@@ -33,3 +33,5 @@ More information can be found in our papers:
 - Evaluation: folder containing a couple of files, updated on 2024-10-01
 
 - Runtimes: folder containing a couple of files, updated on 2024-10-01
+
+This extension includes updates of the basic files of REASONX (post.pl/reasonx.py).
