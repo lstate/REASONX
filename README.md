@@ -19,19 +19,3 @@ More information can be found in our papers:
     Accepted at [xAI 2023](https://xaiworldconference.com/)
 
     An interdisciplinary [paper](https://arxiv.org/abs/2305.18143), demonstrating main capabilites of REASONX via a synthetic example, and based on the Adult Income Dataset.
-
-## Extension of the code base (notebooks/extension)
-
-- Reasoning over time
-
-- Reasoning over models
-  
-- Diversity optimization
-
-- Detecting biases
-
-- Evaluation: folder containing a couple of files, updated on 2024-10-01
-
-- Runtimes: folder containing a couple of files, updated on 2024-10-01
-
-This extension includes updates of the basic files of REASONX (post.pl/reasonx.py).
